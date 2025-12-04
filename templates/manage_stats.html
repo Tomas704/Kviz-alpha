@@ -1,0 +1,212 @@
+{% extends 'manage_layout.html' %}
+
+{% block manager_content %}
+
+{% if no_data %}
+<div class="alert alert-warning text-center p-5">
+    <h4><i class="bi bi-bar-chart"></i> Žiadne dáta</h4>
+    <p>Tento kvíz zatiaľ nebol spustený. Štatistiky sa zobrazia po prvom vyhodnotení testu.</p>
+</div>
+{% else %}
+
+<div class="row mb-4">
+    <div class="col-md-3 col-6 mb-3 mb-md-0">
+        <div class="card bg-info text-white shadow-sm h-100">
+            <div class="card-body text-center">
+                <h1 class="display-4 fw-bold">{{ quiz.passing_score }}%</h1>
+                <p class="mb-0">Hranica na prejdenie</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3 col-6 mb-3 mb-md-0">
+        <div class="card bg-primary text-white shadow-sm h-100">
+            <div class="card-body text-center">
+                <h1 class="display-4 fw-bold">{{ total_attempts }}</h1>
+                <p class="mb-0">Počet vyplnení</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3 col-6 mb-3 mb-md-0">
+        <div class="card text-white shadow-sm h-100 
+                {% if avg_percentage >= (quiz.passing_score + 5) %}
+                    bg-success
+                {% elif avg_percentage >= (quiz.passing_score - 5) %}
+                    bg-warning text-dark
+                {% else %}
+                    bg-danger
+                {% endif %}">
+
+            <div class="card-body text-center">
+                <h1 class="display-4 fw-bold">{{ avg_percentage }}%</h1>
+                <p class="mb-0">Priemerná úspešnosť</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-3 col-6 mb-3 mb-md-0">
+        <div class="card text-white shadow-sm h-100
+                {% if pass_rate >= (quiz.passing_score + 5) %}
+                    bg-success
+                {% elif pass_rate >= (quiz.passing_score - 5) %}
+                    bg-warning text-dark
+                {% else %}
+                    bg-danger
+                {% endif %}">
+
+            <div class="card-body text-center">
+                <h1 class="display-4 fw-bold">{{ pass_rate }}%</h1>
+                <p class="mb-0">Miera úspešnosti</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mb-4">
+    <div class="col-md-4 mb-3 mb-md-0">
+        <div class="card shadow-sm h-100">
+            <div class="card-header bg-white fw-bold">Pomer úspešnosti prejdenia</div>
+            <div class="card-body">
+                <canvas id="passFailChart"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-8">
+        <div class="card shadow-sm h-100">
+            <div class="card-header bg-white fw-bold">Úspešnosť podľa otázok</div>
+            <div class="card-body">
+                <canvas id="questionsChart"></canvas>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card shadow-sm">
+    <div class="card-header bg-white fw-bold">Detailná analýza otázok</div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover table-striped mb-0 align-middle">
+                <thead class="table-light">
+                    <tr>
+                        <th>Otázka</th>
+                        <th class="text-center">Typ odpovede</th>
+                        <th class="text-center">Počet odpovedí</th>
+                        <th class="text-center">Správne</th>
+                        <th class="text-center">Úspešnosť</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for stat in questions_stats %}
+                    <tr>
+                        <td class="text-truncate" style="max-width: 300px;" title="{{ stat.text | striptags }}">
+                            {{ stat.text | striptags | truncate(100) }}
+                        </td>
+                        <td class="text-center">
+                            {% if stat.type == 'single' %}<span class="badge bg-secondary">Jedna správna</span>
+                            {% elif stat.type == 'multi' %}<span class="badge bg-secondary">Viac správnych</span>
+                            {% else %}<span class="badge bg-secondary">Slovná</span>{% endif %}
+                        </td>
+                        <td class="text-center">{{ stat.total }}</td>
+                        <td class="text-center">{{ stat.correct }}</td>
+                        <td class="text-center">
+                            {% if stat.rate >= (quiz.passing_score + 5) %}
+                            <span class="badge bg-success">{{ stat.rate }}%</span>
+                            {% elif stat.rate >= (quiz.passing_score - 5) %}
+                            <span class="badge bg-warning text-dark">{{ stat.rate }}%</span>
+                            {% else %}
+                            <span class="badge bg-danger">{{ stat.rate }}%</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+{% endif %}
+
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        {% if not no_data %}
+
+        // --- 1. GRAF: PASS vs FAIL (Pie Chart) ---
+        const ctx1 = document.getElementById('passFailChart').getContext('2d');
+        new Chart(ctx1, {
+            type: 'doughnut',
+            data: {
+                labels: ['Úspešní', 'Neúspešní'],
+                datasets: [{
+                    data: [{{ pass_count }}, {{ fail_count }}],
+            backgroundColor: ['#198754', '#dc3545'], // Bootstrap Success & Danger
+            hoverOffset: 4
+        }]
+                },
+        options: {
+        responsive: true,
+        maintainAspectRatio: false, // Aby sa prispôsobil výške kontajnera
+        plugins: {
+            legend: { position: 'bottom' }
+        }
+    }
+            });
+
+    // --- 2. GRAF: OTÁZKY (Bar Chart) ---
+    const qLabels = [
+        {% for s in questions_stats %} "Otázka {{ loop.index }}", {% endfor %}
+            ];
+    const qData = [
+        {% for s in questions_stats %} {{ s.rate }}, {% endfor %}
+            ];
+    const qTooltips = [
+        {% for s in questions_stats %} "{{ s.text | striptags | truncate(30) }}", {% endfor %}
+            ];
+
+    // Farba stĺpcov podľa hranice
+    const passingScore = {{ quiz.passing_score }};
+    const barColors = qData.map(val => {
+        if (val >= passingScore + 5) return '#198754'; // Zelená
+        if (val >= passingScore - 5) return '#ffc107'; // Žltá
+        return '#dc3545'; // Červená
+    });
+
+    const ctx2 = document.getElementById('questionsChart').getContext('2d');
+    new Chart(ctx2, {
+        type: 'bar',
+        data: {
+            labels: qLabels,
+            datasets: [{
+                label: 'Úspešnosť (%)',
+                data: qData,
+                backgroundColor: barColors,
+                borderRadius: 5
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+                y: { beginAtZero: true, max: 100 }
+            },
+            plugins: {
+                tooltip: {
+                    callbacks: {
+                        title: function (context) {
+                            return qTooltips[context[0].dataIndex];
+                        }
+                    }
+                }
+            }
+        }
+    });
+
+    {% endif %}
+    });
+</script>
+{% endblock %}

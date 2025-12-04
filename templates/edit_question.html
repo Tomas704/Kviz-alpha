@@ -10,15 +10,25 @@
             </div>
             <div class="list-group list-group-flush" style="max-height: 600px; overflow-y: auto;">
                 {% for q in quiz.questions %}
-                    {% set is_active = (question is defined and question.id == q.id) %}
+                    {% set is_active_item = (question is defined and question.id == q.id) %}
                     
                     <a href="{{ url_for('edit_question', quiz_id=quiz.id, question_id=q.id) }}" 
-                       class="list-group-item list-group-item-action d-flex justify-content-between align-items-center {% if is_active %}active{% endif %}">
+                       class="list-group-item list-group-item-action d-flex justify-content-between align-items-center {% if is_active_item %}active{% endif %}">
+                        
                         <div class="text-truncate me-2">
                             <small class="fw-bold me-1">{{ loop.index }}.</small> 
-                            {{ q.text | striptags | truncate(40) }}
+                            
+                            {% if not q.is_active %}
+                                <span class="text-muted text-decoration-line-through" title="Deaktivovaná">
+                                    {{ q.text | striptags | truncate(18) }}
+                                </span>
+                                <i class="bi bi-eye-slash-fill text-danger small ms-1"></i>
+                            {% else %}
+                                {{ q.text | striptags | truncate(20) }}
+                            {% endif %}
                         </div>
-                        {% if is_active %}
+
+                        {% if is_active_item %}
                             <i class="bi bi-pencil-fill small"></i>
                         {% endif %}
                     </a>
@@ -39,8 +49,14 @@
 
     <div class="col-lg-9">
         <div class="card shadow-sm">
-            <div class="card-header bg-white">
+            <div class="card-header bg-white d-flex justify-content-between align-items-center">
                 <h4 class="mb-0">{{ legend }}</h4>
+                
+                {% if not question.is_active %}
+                    <span class="badge bg-danger"><i class="bi bi-eye-slash"></i> Deaktivovaná</span>
+                {% else %}
+                    <span class="badge bg-success"><i class="bi bi-check-circle"></i> Aktívna</span>
+                {% endif %}
             </div>
             <div class="card-body">
                 <form method="POST" id="questionForm">
@@ -52,6 +68,24 @@
                         </div>
                         
                         <div class="d-flex gap-3 align-items-end">
+                            
+                            <div style="width: 110px;">
+                                <label class="form-label small text-muted mb-1">Stav</label>
+                                {% if question.is_active %}
+                                    <a href="{{ url_for('toggle_question', quiz_id=quiz.id, question_id=question.id) }}" 
+                                       class="btn btn-sm btn-outline-success w-100" 
+                                       title="Kliknutím deaktivujete">
+                                        <i class="bi bi-toggle-on"></i> Zapnutá
+                                    </a>
+                                {% else %}
+                                    <a href="{{ url_for('toggle_question', quiz_id=quiz.id, question_id=question.id) }}" 
+                                       class="btn btn-sm btn-outline-secondary w-100" 
+                                       title="Kliknutím aktivujete">
+                                        <i class="bi bi-toggle-off"></i> Vypnutá
+                                    </a>
+                                {% endif %}
+                            </div>
+
                             <div style="min-width: 220px;">
                                 <label class="form-label small text-muted mb-1">{{ form.q_type.label.text }}</label>
                                 {{ form.q_type(class="form-select form-select-sm") }}

@@ -78,6 +78,19 @@ class Quiz(db.Model):
     questions = db.relationship('Question', backref='quiz', lazy=True, cascade="all, delete-orphan")
     results = db.relationship('QuizResult', backref='quiz', lazy=True, cascade="all, delete-orphan")
 
+    @property
+    def total_attempts(self):
+        """Vráti celkový počet spustení tohto testu."""
+        return len(self.results)
+
+    @property
+    def avg_percentage(self):
+        """Vráti priemernú úspešnosť (v %) alebo 0, ak test nikto nerobil."""
+        if not self.results:
+            return 0
+        total = sum(r.percentage for r in self.results)
+        return round(total / len(self.results), 1)
+
     def __repr__(self):
         return f'<Quiz {self.title}>'
 
@@ -155,6 +168,8 @@ class UserAnswer(db.Model):
     
     # B) Ak písal text, uložíme text
     text_answer = db.Column(db.Text, nullable=True)
+
+    question = db.relationship('Question', lazy=True)
 
     def __repr__(self):
         return f'<Ans Q:{self.question_id}>'
@@ -306,7 +321,11 @@ def recalculate_quiz_score(quiz):
         answers_map = {}
         text_answers_map = {}
         
+        # Zoznam otázok, ktoré boli v TOMTO výsledku
+        questions_in_this_result = set()
+
         for ans in result.answers:
+            questions_in_this_result.add(ans.question) # Pridáme objekt otázky
             if ans.option_id:
                 if ans.question_id not in answers_map:
                     answers_map[ans.question_id] = []
@@ -314,16 +333,13 @@ def recalculate_quiz_score(quiz):
             if ans.text_answer:
                 text_answers_map[ans.question_id] = ans.text_answer
 
-        # 2. Prechádzame AKTUÁLNE otázky (tie, čo sú teraz v DB)
-        for question in quiz.questions:
-            # PODMIENKA 1: Časová (neexistovala v čase testu)
-            if question.created_at and question.created_at > result.date_taken:
-                continue
-
+        # 2. Prechádzame len otázky, ktoré boli súčasťou tohto výsledku!
+        # (Ignorujeme globálne quiz.questions, používame len tie z odpovedí)
+        for question in questions_in_this_result:
             # PODMIENKA 2 (NOVÁ): Deaktivovaná otázka
             # Ak je otázka vypnutá, správame sa, akoby neexistovala (nezarátame max body)
             if not question.is_active:
-                continue 
+                continue
 
             new_max_score += question.points
             
@@ -600,25 +616,38 @@ def view_result(result_id):
         flash('Nemáte oprávnenie.', 'danger')
         return redirect(url_for('index'))
     
-    # --- PRÍPRAVA DÁT PRE ŠABLÓNU ---
-    # Chceme vedieť rýchlo zistiť: "Vybral užívateľ túto možnosť?"
-    # Vytvoríme štruktúru: { question_id: { 'selected_options': [id, id], 'text': 'odpoveď' } }
-    
+    # --- PRÍPRAVA DÁT ---
     user_answers_map = {}
     
+    # Zoznam otázok, ktoré boli súčasťou TOHTO testu
+    # (Získame ich priamo z odpovedí užívateľa)
+    questions_in_test = []
+    seen_questions = set()
+
     for ans in result.answers:
+        # Mapa odpovedí (pre vyfarbovanie)
         if ans.question_id not in user_answers_map:
             user_answers_map[ans.question_id] = {'selected_options': [], 'text': None}
-            
+        
         if ans.option_id:
             user_answers_map[ans.question_id]['selected_options'].append(ans.option_id)
         if ans.text_answer is not None:
             user_answers_map[ans.question_id]['text'] = ans.text_answer
+            
+        # Zoznam otázok (pre výpis)
+        # ans.question je objekt otázky (vďaka vzťahu v modeli)
+        if ans.question_id not in seen_questions:
+            questions_in_test.append(ans.question)
+            seen_questions.add(ans.question_id)
+    
+    # Zoradíme ich podľa pozície, aby neboli napreskakčku
+    questions_in_test.sort(key=lambda x: x.position)
 
     return render_template('result.html', 
                            result=result, 
                            quiz=result.quiz, 
-                           user_map=user_answers_map) # Posielame mapu
+                           user_map=user_answers_map,
+                           questions=questions_in_test) # <-- POSIELAME NOVÝ ZOZNAM
 
 @app.route('/export-quiz/<int:quiz_id>')
 @login_required
@@ -1041,9 +1070,10 @@ def take_quiz_all_at_once(quiz):
         score = 0
         total_max_score = 0
 
-        ordered_questions = Question.query.filter_by(quiz_id=quiz.id).order_by(Question.position).all()
+        # Tým zabezpečíme, že sa do 'UserAnswer' uložia len tie, ktoré boli v teste.
+        active_questions = Question.query.filter_by(quiz_id=quiz.id, is_active=True).order_by(Question.position).all()
         
-        for question in ordered_questions:
+        for question in active_questions:
             total_max_score += question.points
             user_answers = request.form.getlist(f'question_{question.id}')
             
@@ -1336,6 +1366,96 @@ def move_question(quiz_id, question_id, direction):
         db.session.commit()
     
     return redirect(url_for('manage_quiz_questions', quiz_id=quiz_id))
+
+@app.route('/quiz/<int:quiz_id>/manage/stats')
+@login_required
+def manage_quiz_stats(quiz_id):
+    quiz = Quiz.query.get_or_404(quiz_id)
+    
+    if quiz.author != current_user:
+        flash('Nemáte oprávnenie.', 'danger')
+        return redirect(url_for('index'))
+    
+    results = quiz.results
+    
+    # 1. ZÁKLADNÉ METRIKY
+    total_attempts = len(results)
+    
+    # Ak ešte nie sú žiadne výsledky, pošleme flag 'no_data'
+    if total_attempts == 0:
+        return render_template('manage_stats.html', quiz=quiz, no_data=True)
+
+    avg_score = sum(r.score for r in results) / total_attempts
+    avg_percentage = sum(r.percentage for r in results) / total_attempts
+    
+    pass_count = sum(1 for r in results if r.percentage >= quiz.passing_score)
+    fail_count = total_attempts - pass_count
+    pass_rate = (pass_count / total_attempts) * 100
+    
+    # 2. ANALÝZA JEDNOTLIVÝCH OTÁZOK
+    # Chceme vedieť: Ktorá otázka bola najťažšia?
+    questions_stats = []
+    
+    # Prechádzame len aktívne otázky
+    active_questions = Question.query.filter_by(quiz_id=quiz.id, is_active=True).order_by(Question.position).all()
+
+    for question in active_questions:
+        # Nájdeme všetky odpovede na túto otázku naprieč všetkými výsledkami
+        all_answers = UserAnswer.query.filter_by(question_id=question.id).all()
+        total_ans_count = len(all_answers)
+        
+        correct_ans_count = 0
+        
+        for ans in all_answers:
+            is_correct = False
+            
+            # Logika overenia (zjednodušená pre štatistiku)
+            if question.q_type == 'text':
+                # Pri texte porovnávame stringy
+                correct_text = question.options[0].text.strip().lower()
+                if ans.text_answer and ans.text_answer.strip().lower() == correct_text:
+                    is_correct = True
+            
+            elif question.q_type == 'single':
+                # Pri single stačí porovnať option_id so správnou možnosťou
+                correct_option = next((o for o in question.options if o.is_correct), None)
+                if correct_option and ans.option_id == correct_option.id:
+                    is_correct = True
+                    
+            elif question.q_type == 'multi':
+                # Pri multi je to zložitejšie, lebo UserAnswer ukladá po jednom riadku.
+                # Pre štatistiku budeme rátať ako "úspech", ak označil SPRÁVNU možnosť.
+                if ans.option_id:
+                    opt = Option.query.get(ans.option_id)
+                    if opt and opt.is_correct:
+                        is_correct = True
+            
+            if is_correct:
+                correct_ans_count += 1
+        
+        # Výpočet úspešnosti otázky
+        success_rate = (correct_ans_count / total_ans_count * 100) if total_ans_count > 0 else 0
+        
+        questions_stats.append({
+            'text': question.text,
+            'type': question.q_type,
+            'total': total_ans_count,
+            'correct': correct_ans_count,
+            'rate': round(success_rate, 1)
+        })
+    
+    # Zoradíme otázky od najťažšej (najmenšia úspešnosť)
+    questions_stats.sort(key=lambda x: x['rate'])
+
+    return render_template('manage_stats.html', 
+                           quiz=quiz, 
+                           total_attempts=total_attempts,
+                           avg_percentage=round(avg_percentage, 1),
+                           pass_rate=round(pass_rate, 1),
+                           pass_count=pass_count,
+                           fail_count=fail_count,
+                           questions_stats=questions_stats,
+                           no_data=False)
 
 if __name__ == '__main__':
     app.run(debug=True, port=8080)

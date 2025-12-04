@@ -96,7 +96,7 @@
             </div>
         </div>
 
-        {% for question in quiz.questions %}
+        {% for question in questions %}
             {% set user_ans = user_map.get(question.id, {'selected_options': [], 'text': ''}) %}
             
             {% set is_future_question = (question.created_at > result.date_taken) %}
