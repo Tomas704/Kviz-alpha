@@ -1,0 +1,12 @@
+{
+  "text": "Označte všetky automobilky, ktoré pochádzajú z Japonska:",
+  "type": "multi",
+  "points": 2,
+  "options": [
+    { "text": "Toyota", "is_correct": true },
+    { "text": "Hyundai", "is_correct": false },
+    { "text": "Mazda", "is_correct": true },
+    { "text": "Honda", "is_correct": true },
+    { "text": "Kia", "is_correct": false }
+  ]
+}

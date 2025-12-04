@@ -1,0 +1,383 @@
+{% extends 'manage_layout.html' %}
+
+{% block manager_content %}
+<div class="row">
+    
+    <div class="col-lg-3 mb-4">
+        <div class="card shadow-sm h-100">
+            <div class="card-header bg-light fw-bold">
+                <i class="bi bi-list-ul"></i> Otázky v teste
+            </div>
+            <div class="list-group list-group-flush" style="max-height: 600px; overflow-y: auto;">
+                {% for q in quiz.questions %}
+                    {% set is_active = (question is defined and question.id == q.id) %}
+                    
+                    <a href="{{ url_for('edit_question', quiz_id=quiz.id, question_id=q.id) }}" 
+                       class="list-group-item list-group-item-action d-flex justify-content-between align-items-center {% if is_active %}active{% endif %}">
+                        <div class="text-truncate me-2">
+                            <small class="fw-bold me-1">{{ loop.index }}.</small> 
+                            {{ q.text | striptags | truncate(40) }}
+                        </div>
+                        {% if is_active %}
+                            <i class="bi bi-pencil-fill small"></i>
+                        {% endif %}
+                    </a>
+                {% endfor %}
+                
+                <div class="list-group-item border-top p-2 bg-light">
+                    <button type="button" class="btn btn-warning w-100 mb-2 fw-bold" data-bs-toggle="modal" data-bs-target="#importQuestionModal">
+                        <i class="bi bi-upload"></i> Import otázky
+                    </button>
+
+                    <a href="{{ url_for('add_question', quiz_id=quiz.id) }}" class="btn btn-success w-100 fw-bold">
+                        <i class="bi bi-plus-circle"></i> Pridať novú otázku
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-9">
+        <div class="card shadow-sm">
+            <div class="card-header bg-white">
+                <h4 class="mb-0">{{ legend }}</h4>
+            </div>
+            <div class="card-body">
+                <form method="POST" id="questionForm">
+                    {{ form.hidden_tag() }}
+
+                    <div class="d-flex flex-wrap justify-content-between align-items-end mb-2 gap-3">
+                        <div class="flex-grow-1">
+                            {{ form.text.label(class="form-label h5 mb-0") }}
+                        </div>
+                        
+                        <div class="d-flex gap-3 align-items-end">
+                            <div style="min-width: 220px;">
+                                <label class="form-label small text-muted mb-1">{{ form.q_type.label.text }}</label>
+                                {{ form.q_type(class="form-select form-select-sm") }}
+                            </div>
+                            <div style="width: 100px;">
+                                <label class="form-label small text-muted mb-1">{{ form.points.label.text }}</label>
+                                {{ form.points(class="form-control form-control-sm") }}
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="mb-4">
+                        <div style="display: none;">
+                            {{ form.text(id="hiddenBodyInput") }}
+                        </div>
+                        <div id="quill-editor" class="bg-white text-dark" style="height: 200px;"></div>
+                    </div>
+
+                    <hr>
+
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h5 class="mb-0">Možnosti odpovede</h5>
+                        <button type="button" class="btn btn-outline-success btn-sm" id="addOptionBtn">
+                            <i class="bi bi-plus-lg"></i> Pridať možnosť
+                        </button>
+                    </div>
+
+                    <div id="optionsContainer">
+                    </div>
+
+                    <hr class="my-4">
+
+                    <div class="mb-4">
+                        <label class="form-label fw-bold text-info">
+                            <i class="bi bi-lightbulb"></i> Vysvetlenie správnej odpovede
+                        </label>
+                        <div style="display: none;">
+                            {{ form.explanation(id="hiddenExplanationInput") }}
+                        </div>
+                        <div id="quill-explanation" class="bg-white text-dark" style="height: 100px;"></div>
+                        <div class="form-text">
+                            Toto vysvetlenie sa zobrazí študentovi až po vyhodnotení testu (ak je to povolené v nastaveniach).
+                        </div>
+                    </div>
+
+                    <div class="mt-4 pt-3 border-top d-flex justify-content-between">
+                        <a href="{{ url_for('manage_quiz_questions', quiz_id=quiz.id) }}" class="btn btn-outline-secondary">
+                            Zrušiť
+                        </a>
+                        {{ form.submit(class="btn btn-primary px-5") }}
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="importQuestionModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Importovať otázku zo súboru</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+
+            <form method="POST" action="{{ url_for('import_question', quiz_id=quiz.id) }}" enctype="multipart/form-data">
+                <div class="modal-body">
+                    {{ import_form.hidden_tag() }}
+
+                    <div class="mb-3">
+                        <p class="text-muted small">
+                            Môžete nahrať <strong>viacero</strong> .json súborov naraz.
+                        </p>
+                        {{ import_form.files.label(class="form-label") }}
+                        {{ import_form.files(class="form-control", multiple=True) }}
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-danger" data-bs-dismiss="modal">Zrušiť</button>
+                    {{ import_form.submit(class="btn btn-primary") }}
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // --- 1. HLAVNÝ EDITOR (PRE OTÁZKU) ---
+    var quill = new Quill('#quill-editor', {
+        theme: 'snow',
+        placeholder: 'Sem napíšte znenie otázky...',
+        modules: {
+            toolbar: [
+                ['bold', 'italic', 'underline', 'strike'],
+                [{ 'list': 'ordered' }, { 'list': 'bullet' }],
+                [{ 'script': 'sub' }, { 'script': 'super' }],
+                [{ 'color': [] }, { 'background': [] }],
+                ['code-block'],
+                ['clean']
+            ]
+        }
+    });
+
+    var hiddenInput = document.getElementById('hiddenBodyInput');
+    quill.root.innerHTML = hiddenInput.value;
+
+    quill.on('text-change', function () {
+        hiddenInput.value = quill.root.innerHTML;
+    });
+
+    // --- 2. EDITOR PRE VYSVETLENIE ---
+    var quillExpl = new Quill('#quill-explanation', {
+        theme: 'snow',
+        placeholder: 'Sem napíšte vysvetlenie správnej odpovede...',
+        modules: {
+            toolbar: [
+                ['bold', 'italic', 'underline', 'code-block', 'clean']
+            ]
+        }
+    });
+
+    var hiddenExplInput = document.getElementById('hiddenExplanationInput');
+    if(hiddenExplInput) {
+        quillExpl.root.innerHTML = hiddenExplInput.value;
+        quillExpl.on('text-change', function () {
+            hiddenExplInput.value = quillExpl.root.innerHTML;
+        });
+    }
+
+
+    // --- 3. EDITOR PRE ODPOVEDE ---
+    document.addEventListener('DOMContentLoaded', function () {
+        const container = document.getElementById('optionsContainer');
+        const addBtn = document.getElementById('addOptionBtn');
+        const typeSelect = document.getElementById('q_type');
+        let optionCount = 0;
+
+        function createOptionRow(text = '', isCorrect = false) {
+            const row = document.createElement('div');
+            row.className = 'd-flex align-items-start mb-3 option-row gap-2';
+
+            const currentType = typeSelect.value;
+            const isTextType = (currentType === 'text');
+
+            let inputType = 'checkbox';
+            if (currentType === 'single') {
+                inputType = 'radio';
+            }
+
+            const checkboxVisibility = isTextType ? 'd-none' : '';
+            const checkedState = (isTextType || isCorrect) ? 'checked' : '';
+            const placeholderText = isTextType ? 'Správna textová odpoveď' : 'Text odpovede';
+            const deleteButtonVisibility = isTextType ? 'd-none' : '';
+
+            const editorId = 'quill-option-' + optionCount;
+
+            row.innerHTML = `
+                <div class="p-2 input-group-text ${checkboxVisibility}" style="height: 42px;">
+                    <input class="form-check-input mt-0" type="${inputType}" 
+                           name="option_is_correct" value="${optionCount}" 
+                           ${checkedState} 
+                           aria-label="Označiť ako správnu odpoveď">
+                </div>
+                
+                <div class="flex-grow-1">
+                    <input type="hidden" name="option_text" value="${text.replace(/"/g, '&quot;')}">
+                    <div id="${editorId}" class="bg-white text-dark" style="height: 60px;"></div>
+                </div>
+                
+                <div class="d-flex flex-column gap-1 action-buttons ${deleteButtonVisibility}">
+                    <button class="btn btn-outline-danger remove-btn btn-sm" type="button" title="Odstrániť">
+                        <i class="bi bi-trash"></i>
+                    </button>
+                    <button class="btn btn-outline-secondary move-up-btn btn-sm" type="button" title="Posunúť hore">
+                        <i class="bi bi-chevron-up"></i>
+                    </button>
+                    <button class="btn btn-outline-secondary move-down-btn btn-sm" type="button" title="Posunúť dole">
+                        <i class="bi bi-chevron-down"></i>
+                    </button>
+                </div>
+            `;
+
+            row.querySelector('.move-up-btn').addEventListener('click', function() {
+                if (row.previousElementSibling) {
+                    row.parentNode.insertBefore(row, row.previousElementSibling);
+                    reindexCheckboxes(); 
+                }
+            });
+
+            row.querySelector('.move-down-btn').addEventListener('click', function() {
+                if (row.nextElementSibling) {
+                    row.parentNode.insertBefore(row.nextElementSibling, row);
+                    reindexCheckboxes(); 
+                }
+            });
+
+            row.querySelector('.remove-btn').addEventListener('click', function () {
+                if (typeSelect.value === 'text' && container.children.length <= 1) {
+                    return;
+                }
+                row.remove();
+                reindexCheckboxes();
+            });
+
+            container.appendChild(row);
+
+            var quillOption = new Quill('#' + editorId, {
+                theme: 'snow',
+                placeholder: placeholderText,
+                modules: {
+                    toolbar: [
+                        ['bold', 'italic', 'underline', 'code-block', 'clean'],
+                        [{ 'script': 'sub' }, { 'script': 'super' }],
+                        [{ 'color': [] }, { 'background': [] }]
+                    ]
+                }
+            });
+
+            quillOption.clipboard.dangerouslyPasteHTML(0, text);
+
+            quillOption.on('text-change', function () {
+                const hiddenOptionInput = row.querySelector('input[name="option_text"]');
+                if (typeSelect.value === 'text') {
+                    hiddenOptionInput.value = quillOption.getText().trim();
+                } else {
+                    hiddenOptionInput.value = quillOption.root.innerHTML;
+                }
+            });
+
+            row.quillInstance = quillOption;
+            optionCount++;
+        }
+
+        function reindexCheckboxes() {
+            const inputs = container.querySelectorAll('input[name="option_is_correct"]');
+            inputs.forEach((input, index) => {
+                input.value = index;
+            });
+        }
+
+        function handleTypeChange() {
+            const type = typeSelect.value;
+            const allRows = container.querySelectorAll('.option-row');
+
+            if (type === 'text') {
+                addBtn.style.display = 'none';
+                while (container.children.length > 1) {
+                    container.lastChild.remove();
+                }
+                if (container.children.length === 0) {
+                    createOptionRow();
+                }
+            } else {
+                addBtn.style.display = 'inline-block';
+            }
+
+            const rowsNow = container.querySelectorAll('.option-row');
+            rowsNow.forEach(row => {
+                const checkboxDiv = row.querySelector('.input-group-text');
+                const actionButtons = row.querySelector('.action-buttons');
+                const inputChoice = row.querySelector('input[name="option_is_correct"]');
+
+                if (type === 'text') {
+                    checkboxDiv.classList.add('d-none');
+                    if(actionButtons) actionButtons.classList.add('d-none');
+                    
+                    inputChoice.checked = true;
+                    if (row.quillInstance) row.quillInstance.root.dataset.placeholder = "Správna textová odpoveď";
+                } else {
+                    checkboxDiv.classList.remove('d-none');
+                    if(actionButtons) actionButtons.classList.remove('d-none');
+                    
+                    if (row.quillInstance) row.quillInstance.root.dataset.placeholder = "Text odpovede";
+                    inputChoice.type = (type === 'single') ? 'radio' : 'checkbox';
+                }
+            });
+
+            if (type === 'single') {
+                const allInputs = container.querySelectorAll('input[name="option_is_correct"]');
+                allInputs.forEach(input => { input.checked = false; });
+            }
+        }
+
+        container.addEventListener('change', function (e) {
+            if (e.target.name === 'option_is_correct') {
+                const type = typeSelect.value;
+                if (type === 'single' && e.target.checked) {
+                    const allInputs = container.querySelectorAll('input[name="option_is_correct"]');
+                    allInputs.forEach(input => {
+                        if (input !== e.target) {
+                            input.checked = false;
+                        }
+                    });
+                }
+            }
+        });
+
+        addBtn.addEventListener('click', function () {
+            createOptionRow();
+        });
+
+        typeSelect.addEventListener('change', handleTypeChange);
+
+        {% if question %}
+        {% for option in question.options %}
+        createOptionRow(
+            "{{ option.text|replace('"', '\\"')|safe }}",
+            {{ 'true' if option.is_correct else 'false' }}
+        );
+        {% endfor %}
+
+        if (typeSelect.value === 'single') {
+            const inputs = container.querySelectorAll('input[name="option_is_correct"]');
+            inputs.forEach(inp => inp.type = 'radio');
+        } else if (typeSelect.value === 'text') {
+            handleTypeChange();
+        }
+        {% else %}
+        if (container.children.length === 0) {
+            createOptionRow();
+            createOptionRow();
+        }
+        handleTypeChange();
+        {% endif %}
+    });
+</script>
+{% endblock %}

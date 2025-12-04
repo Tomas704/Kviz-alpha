@@ -1,0 +1,28 @@
+{% extends 'layout.html' %} {% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h2>Manažér: <span class="text-primary">{{ quiz.title }}</span></h2>
+            <a href="{{ url_for('index') }}" class="btn btn-outline-secondary">
+                <i class="bi bi-arrow-left"></i> Späť na nástenku
+            </a>
+        </div>
+
+        <ul class="nav nav-tabs mb-4">
+            <li class="nav-item">
+                <a class="nav-link {% if request.endpoint == 'manage_quiz_questions' %}active{% endif %}"
+                    href="{{ url_for('manage_quiz_questions', quiz_id=quiz.id) }}">
+                    <i class="bi bi-list-check"></i> Otázky ({{ quiz.questions|length }})
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link {% if request.endpoint == 'manage_quiz_settings' %}active{% endif %}"
+                    href="{{ url_for('manage_quiz_settings', quiz_id=quiz.id) }}">
+                    <i class="bi bi-gear"></i> Nastavenia
+                </a>
+            </li>
+        </ul>
+    </div>
+</div>
+
+{% block manager_content %}{% endblock %} {% endblock %}

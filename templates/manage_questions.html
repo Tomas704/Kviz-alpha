@@ -1,0 +1,137 @@
+{% extends 'manage_layout.html' %}
+
+{% block manager_content %}
+<div class="d-flex justify-content-between mb-3">
+    <h4>Zoznam otázok</h4>
+    <div>
+        <button type="button" class="btn btn-warning me-2" data-bs-toggle="modal" data-bs-target="#importQuestionModal">
+            <i class="bi bi-upload"></i> Import JSON
+        </button>
+
+        <a href="{{ url_for('add_question', quiz_id=quiz.id) }}" class="btn btn-success">
+            <i class="bi bi-plus-lg"></i> Pridať otázku
+        </a>
+    </div>
+</div>
+
+{% if questions %}
+<div class="list-group">
+    {% for question in questions %}
+    <div class="list-group-item d-flex justify-content-between align-items-center gap-3 {% if not question.is_active %}bg-light opacity-75{% endif %}">
+        
+        <div class="d-flex align-items-center flex-grow-1 overflow-hidden">
+            
+            <div class="d-flex flex-column me-2 bg-light rounded border px-1 flex-shrink-0">
+                {% if not loop.first %}
+                <a href="{{ url_for('move_question', quiz_id=quiz.id, question_id=question.id, direction='up') }}" 
+                   class="btn btn-sm text-secondary p-0 border-0 lh-1" title="Posunúť hore">
+                    <i class="bi bi-caret-up-fill"></i>
+                </a>
+                {% else %}
+                <span class="btn btn-sm text-muted p-0 border-0 lh-1 disabled"><i class="bi bi-caret-up-fill"></i></span>
+                {% endif %}
+
+                {% if not loop.last %}
+                <a href="{{ url_for('move_question', quiz_id=quiz.id, question_id=question.id, direction='down') }}" 
+                   class="btn btn-sm text-secondary p-0 border-0 lh-1" title="Posunúť dole">
+                    <i class="bi bi-caret-down-fill"></i>
+                </a>
+                {% else %}
+                <span class="btn btn-sm text-muted p-0 border-0 lh-1 disabled"><i class="bi bi-caret-down-fill"></i></span>
+                {% endif %}
+            </div>
+
+            <div class="me-3 flex-shrink-0 text-center" style="min-width: 45px;">
+                <span class="badge {% if question.is_active %}bg-secondary{% else %}bg-secondary-subtle text-muted{% endif %} w-100 py-2">
+                    {{ question.points }} b
+                </span>
+            </div>
+
+            <div class="text-break">
+                <h5 class="mb-1">
+                    {% if not question.is_active %}
+                        <span class="badge bg-danger me-2">Deaktivovaná</span>
+                        <span class="text-decoration-line-through text-muted">{{ question.text | striptags | safe }}</span>
+                    {% else %}
+                        {{ question.text | safe }}
+                    {% endif %}
+                </h5>
+                <small class="text-muted">
+                    Typ:
+                    {% if question.q_type == 'single' %}Výber jednej (ABCD)
+                    {% elif question.q_type == 'multi' %}Viac možností
+                    {% else %}Textová odpoveď{% endif %}
+                    | Možnosti: {{ question.options|length }}
+                </small>
+            </div>
+        </div>
+
+        <div class="d-flex align-items-center gap-1 flex-shrink-0 text-nowrap">
+            <a href="{{ url_for('export_question', quiz_id=quiz.id, question_id=question.id) }}"
+                class="btn btn-outline-dark btn-sm" title="Exportovať otázku">
+                <i class="bi bi-download"></i>
+            </a>
+
+            <a href="{{ url_for('edit_question', quiz_id=quiz.id, question_id=question.id) }}"
+                class="btn btn-outline-primary btn-sm">
+                <i class="bi bi-pencil"></i>
+            </a>
+
+            {% if question.is_active %}
+                <a href="{{ url_for('toggle_question', quiz_id=quiz.id, question_id=question.id) }}" 
+                   class="btn btn-outline-warning btn-sm" 
+                   title="Deaktivovať (skryť z testu)">
+                    <i class="bi bi-power"></i>
+                </a>
+            {% else %}
+                <a href="{{ url_for('toggle_question', quiz_id=quiz.id, question_id=question.id) }}" 
+                   class="btn btn-outline-success btn-sm" 
+                   title="Aktivovať (zobraziť v teste)">
+                    <i class="bi bi-power"></i>
+                </a>
+            {% endif %}
+
+            <a href="{{ url_for('delete_question', quiz_id=quiz.id, question_id=question.id) }}"
+                class="btn btn-outline-danger btn-sm" onclick="return confirm('Naozaj chcete úplne odstrániť túto otázku?');">
+                <i class="bi bi-trash"></i>
+            </a>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% else %}
+<div class="alert alert-info text-center">
+    Tento kvíz zatiaľ nemá žiadne otázky.
+</div>
+{% endif %}
+
+<div class="modal fade" id="importQuestionModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Importovať otázku zo súboru</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+
+            <form method="POST" action="{{ url_for('import_question', quiz_id=quiz.id) }}"
+                enctype="multipart/form-data">
+                <div class="modal-body">
+                    {{ import_form.hidden_tag() }}
+
+                    <div class="mb-3">
+                        <p class="text-muted small">
+                            Môžete nahrať <strong>viacero</strong> .json súborov naraz.
+                        </p>
+                        {{ import_form.files.label(class="form-label") }}
+                        {{ import_form.files(class="form-control", multiple=True) }}
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-danger" data-bs-dismiss="modal">Zrušiť</button>
+                    {{ import_form.submit(class="btn btn-primary") }}
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

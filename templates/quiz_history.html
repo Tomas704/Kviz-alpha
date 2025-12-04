@@ -1,0 +1,63 @@
+{% extends 'layout.html' %}
+
+{% block title %}História: {{ quiz.title }}{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h2>História výsledkov</h2>
+        <h5 class="text-muted">{{ quiz.title }}</h5>
+    </div>
+    <a href="{{ url_for('index') }}" class="btn btn-outline-secondary">
+        <i class="bi bi-arrow-left"></i> Späť
+    </a>
+</div>
+
+<div class="card shadow-sm">
+    <div class="card-body p-0">
+        {% if results %}
+        <div class="table-responsive">
+            <table class="table table-hover table-striped mb-0 align-middle">
+                <thead class="table-light">
+                    <tr>
+                        <th>Dátum</th>
+                        <th class="text-center">Body</th>
+                        <th class="text-center">Percentá</th>
+                        <th class="text-center">Stav</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for result in results %}
+                    <tr>
+                        <td>{{ result.date_taken.strftime('%d.%m.%Y %H:%M') }}</td>
+                        <td class="text-center">{{ result.score }} / {{ result.max_score }}</td>
+                        <td class="text-center fw-bold">{{ result.percentage|round(1) }}%</td>
+                        <td class="text-center">
+                            {% if result.percentage >= quiz.passing_score %}
+                                <span class="badge bg-success">Úspešný</span>
+                            {% else %}
+                                <span class="badge bg-danger">Neúspešný</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-end">
+                            <a href="{{ url_for('view_result', result_id=result.id) }}" class="btn btn-sm btn-primary">
+                                Detail
+                            </a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="text-center py-5">
+            <p class="text-muted fs-5">Tento kvíz ste zatiaľ nespustili.</p>
+            <a href="{{ url_for('take_quiz', quiz_id=quiz.id) }}" class="btn btn-primary">
+                Spustiť test
+            </a>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

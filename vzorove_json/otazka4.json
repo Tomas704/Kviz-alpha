@@ -1,0 +1,13 @@
+{
+    "text": "<p>Doplňte názov: Legendárny systém pohonu všetkých štyroch kolies od značky Audi sa nazýva ___.</p>",
+    "type": "text",
+    "points": 5,
+    "explanation": "<p>Qu....</p>",
+    "options": [
+        {
+            "text": "Quattro",
+            "explanation": "<p>Qu....</p>",
+            "is_correct": true
+        }
+    ]
+}

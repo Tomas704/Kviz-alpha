@@ -1,0 +1,162 @@
+{% extends 'layout.html' %}
+
+{% block title %}{{ quiz.title }}{% endblock %}
+
+{% block content %}
+
+{% if effective_limit_seconds > 0 %}
+<div id="quizTimerBar" class="fixed-top bg-dark text-white p-2 text-center shadow" style="display: none;">
+    <span class="fs-5 fw-bold">
+        <i class="bi bi-stopwatch"></i> <span id="timerLabel">Zostávajúci čas:</span> 
+        <span id="timerDisplay" class="text-warning">--:--</span>
+    </span>
+</div>
+<div style="margin-top: 60px;"></div>
+{% endif %}
+
+<div class="row justify-content-center">
+    <div class="col-lg-8">
+        
+        <div class="card mb-4 border-primary">
+            <div class="card-body text-center">
+                <h2 class="card-title">{{ quiz.title }}</h2>
+                
+                {% if effective_limit_seconds > 0 %}
+                    <div class="d-flex justify-content-center gap-2 mt-3">
+                        <span class="badge bg-danger fs-6">
+                            <i class="bi bi-clock"></i> Limit: {{ (effective_limit_seconds / 60)|int }} min
+                        </span>
+                        {% if not quiz.strict_time_limit %}
+                            <span class="badge bg-warning text-dark fs-6">
+                                <i class="bi bi-exclamation-triangle"></i> Povolený nadčas
+                            </span>
+                        {% endif %}
+                    </div>
+                {% else %}
+                    <span class="badge bg-success fs-6 mt-3">Neobmedzený čas</span>
+                {% endif %}
+            </div>
+        </div>
+
+        <form method="POST" id="quizForm">
+            <input type="hidden" name="time_spent" id="timeSpentInput" value="0">
+
+            {% for question in questions %}
+            <div class="card mb-4 shadow-sm">
+                <div class="card-header bg-white d-flex justify-content-between">
+                    <h5 class="mb-0">Otázka {{ loop.index }}</h5>
+                    <span class="badge bg-light text-dark border">{{ question.points }} b</span>
+                </div>
+                <div class="card-body">
+                    <div class="lead fw-normal mb-4">{{ question.text | safe }}</div>
+                    
+                    {% if question.q_type == 'text' %}
+                        <div class="form-floating mb-3">
+                            <input type="text" class="form-control" 
+                                   id="q_{{ question.id }}" name="question_{{ question.id }}" 
+                                   placeholder="Odpoveď" required>
+                            <label>Napíšte odpoveď</label>
+                        </div>
+                    {% elif question.q_type == 'single' %}
+                        <div class="list-group">
+                            {% for option in question.display_options %}
+                            <label class="list-group-item list-group-item-action cursor-pointer">
+                                <input class="form-check-input me-3" type="radio" 
+                                       name="question_{{ question.id }}" value="{{ option.id }}" required>
+                                {{ option.text }}
+                            </label>
+                            {% endfor %}
+                        </div>
+                    {% elif question.q_type == 'multi' %}
+                        <div class="alert alert-secondary py-2 small">Vyberte všetky správne odpovede</div>
+                        <div class="list-group">
+                            {% for option in question.display_options %}
+                            <label class="list-group-item list-group-item-action cursor-pointer">
+                                <input class="form-check-input me-3" type="checkbox" 
+                                       name="question_{{ question.id }}" value="{{ option.id }}">
+                                {{ option.text }}
+                            </label>
+                            {% endfor %}
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+            {% endfor %}
+
+            <div class="d-grid gap-2 mb-5">
+                <button type="submit" class="btn btn-success btn-lg p-3 fw-bold" 
+                        onclick="return confirm('Naozaj chcete ukončiť a odoslať test?');">
+                    <i class="bi bi-check-circle-fill"></i> Odoslať a Vyhodnotiť
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<style>.cursor-pointer { cursor: pointer; }</style>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // ZMENA: Prijímame sekundy (effective_limit_seconds)
+        const limitSecondsTotal = {{ effective_limit_seconds }};
+        const isStrict = {{ 'true' if quiz.strict_time_limit else 'false' }};
+        
+        const timeSpentInput = document.getElementById('timeSpentInput');
+        let elapsedSeconds = 0;
+
+        setInterval(function() {
+            elapsedSeconds++;
+            timeSpentInput.value = elapsedSeconds;
+        }, 1000);
+
+        // --- LOGIKA LIMITU ---
+        if (limitSecondsTotal > 0) {
+            const timerBar = document.getElementById('quizTimerBar');
+            const timerDisplay = document.getElementById('timerDisplay');
+            const timerLabel = document.getElementById('timerLabel');
+            const quizForm = document.getElementById('quizForm');
+            
+            timerBar.style.display = 'block';
+            
+            // ZMENA: Už neprepočítavame (limitMinutes * 60), máme rovno sekundy
+            const limitSeconds = limitSecondsTotal;
+            let remainingSeconds = limitSeconds;
+
+            function formatTime(sec) {
+                const val = Math.abs(sec);
+                const m = Math.floor(val / 60);
+                const s = val % 60;
+                return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+            }
+
+            const countdownInterval = setInterval(function() {
+                remainingSeconds--;
+                
+                if (remainingSeconds >= 0) {
+                    timerDisplay.textContent = formatTime(remainingSeconds);
+                    if (remainingSeconds < 60) {
+                        timerDisplay.classList.remove('text-warning');
+                        timerDisplay.classList.add('text-danger');
+                    }
+                } else {
+                    if (isStrict) {
+                        clearInterval(countdownInterval);
+                        alert("Čas vypršal! Test sa automaticky odošle.");
+                        quizForm.noValidate = true;
+                        quizForm.submit();
+                    } else {
+                        timerLabel.textContent = "Prekročený čas:";
+                        timerDisplay.textContent = "+" + formatTime(remainingSeconds);
+                        timerBar.classList.remove('bg-dark');
+                        timerBar.classList.add('bg-danger');
+                    }
+                }
+            }, 1000);
+            
+            timerDisplay.textContent = formatTime(remainingSeconds);
+        }
+    });
+</script>
+{% endblock %}

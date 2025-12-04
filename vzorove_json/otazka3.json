@@ -1,0 +1,8 @@
+{
+  "text": "Henry Ford spôsobil revolúciu v priemysle výrobou prvého cenovo dostupného auta. Išlo o Ford Model ___ (napíš jedno písmeno).",
+  "type": "text",
+  "points": 4,
+  "options": [
+    { "text": "T", "is_correct": true }
+  ]
+}

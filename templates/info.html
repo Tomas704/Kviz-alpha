@@ -1,0 +1,22 @@
+{% extends 'layout.html' %}
+
+{% block title %}
+Informácie o projekte
+{% endblock %}
+
+{% block content %}
+<div class="card shadow-sm">
+    <div class="card-body">
+        <h2 class="card-title">Informácie o aplikácii</h2>
+        <p class="card-text">
+            Toto je podstránka, ktorá tiež dedí z hlavnej šablóny
+            <code>layout.html</code>.
+        </p>
+        <p>
+            Všimni si, že navigácia (hore) a pätička (dole) sú
+            rovnaké ako na domovskej stránke, ale tento obsah je unikátny.
+            Toto je sila dedenia šablón!
+        </p>
+    </div>
+</div>
+{% endblock %}

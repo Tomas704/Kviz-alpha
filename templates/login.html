@@ -1,0 +1,80 @@
+{% extends 'layout.html' %}
+
+{% block title %}
+  Prihlásenie
+{% endblock %}
+
+{% block content %}
+<div class="row">
+  <div class="col-md-8 offset-md-2 col-lg-6 offset-lg-3">
+    <div class="card shadow-sm">
+      <div class="card-body p-4">
+        <h2 class="card-title text-center mb-4">Prihlásenie</h2>
+        
+        <form method="POST" action="" novalidate>
+          
+          {{ form.hidden_tag() }}
+
+          <div class="mb-3">
+            {{ form.username.label(class="form-label") }}
+            {{ form.username(class="form-control" + (" is-invalid" if form.username.errors else "")) }}
+            {% if form.username.errors %}
+              <div class="invalid-feedback d-block">
+                {% for error in form.username.errors %}
+                  <span>{{ error }}</span>
+                {% endfor %}
+              </div>
+            {% endif %}
+          </div>
+
+          <div class="mb-3">
+            {{ form.password.label(class="form-label") }}
+            <div class="input-group">
+              {{ form.password(class="form-control" + (" is-invalid" if form.password.errors else ""), id="password") }}
+              <button class="btn btn-outline-secondary toggle-password-btn" type="button" data-target-input="password">
+                  <i class="bi bi-eye-slash"></i>
+              </button>
+              {% if form.password.errors %}
+                <div class="invalid-feedback d-block">
+                  {% for error in form.password.errors %}
+                    <span>{{ error }}</span>
+                  {% endfor %}
+                </div>
+              {% endif %}
+            </div>
+          </div>
+
+          <div class="d-grid gap-2 mt-4">
+            {{ form.submit(class="btn btn-primary btn-lg") }}
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+
+{% block scripts %}
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    const toggleButtons = document.querySelectorAll('.toggle-password-btn');
+    toggleButtons.forEach(function(button) {
+      button.addEventListener('click', function() {
+        const targetInputId = button.dataset.targetInput;
+        const targetInput = document.getElementById(targetInputId);
+        const icon = button.querySelector('i');
+        if (targetInput.type === 'password') {
+          targetInput.type = 'text';
+          icon.classList.remove('bi-eye-slash');
+          icon.classList.add('bi-eye');
+        } else {
+          targetInput.type = 'password';
+          icon.classList.remove('bi-eye');
+          icon.classList.add('bi-eye-slash');
+        }
+      });
+    });
+  });
+</script>
+{% endblock %}

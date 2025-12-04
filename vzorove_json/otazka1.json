@@ -1,0 +1,11 @@
+{
+  "text": "Z ktorej krajiny pochádza automobilka Volvo?",
+  "type": "single",
+  "points": 1,
+  "options": [
+    { "text": "Nemecko", "is_correct": false },
+    { "text": "Švédsko", "is_correct": true },
+    { "text": "Čína", "is_correct": false },
+    { "text": "USA", "is_correct": false }
+  ]
+}

@@ -1,0 +1,278 @@
+{% extends 'layout.html' %}
+
+{% block title %}Moje Kvízy{% endblock %}
+
+{% block content %}
+<div class="row mb-4 align-items-center">
+    <div class="col-md-6">
+        <h1>Vitaj, {{ current_user.username }}!</h1>
+        <p class="text-muted mb-0">Spravuj svoje testy a kategórie.</p>
+    </div>
+
+    <div class="col-md-6 text-md-end mt-3 mt-md-0">
+        <button type="button" class="btn btn-warning me-2" data-bs-toggle="modal" data-bs-target="#importQuizModal">
+            <i class="bi bi-upload"></i> Import JSON
+        </button>
+
+        <button type="button" class="btn btn-success" data-bs-toggle="modal" data-bs-target="#newQuizModal">
+            <i class="bi bi-plus-lg"></i> Nový Kvíz
+        </button>
+    </div>
+</div>
+
+{% if quizzes %}
+<div class="card mb-4 border-0 shadow-sm bg-light">
+    <div class="card-body py-3">
+        <div class="d-flex align-items-center flex-wrap gap-2">
+            <span class="fw-bold me-2"><i class="bi bi-funnel"></i> Filter:</span>
+
+            <button class="btn btn-sm btn-dark filter-btn active" data-filter="all">
+                Všetky
+            </button>
+
+            {% for category in categories %}
+            <button class="btn btn-sm btn-outline-secondary filter-btn" data-filter="{{ category }}">
+                {{ category }}
+            </button>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+
+{% for category in categories %}
+<div class="category-section mb-5" data-category="{{ category }}">
+
+    <h3 class="border-bottom pb-2 mb-3 text-primary d-flex align-items-center">
+                <span class="me-3"><i class="bi bi-folder2-open"></i> {{ category }}</span>
+                
+                <button class="btn btn-sm btn-outline-secondary rename-cat-btn" 
+                        data-bs-toggle="modal" 
+                        data-bs-target="#renameCategoryModal" 
+                        data-oldname="{{ category }}"
+                        title="Premenovať kategóriu">
+                    <i class="bi bi-pencil"></i>
+                </button>
+            </h3>
+
+    <div class="row">
+        {% for quiz in quizzes if quiz.category == category %}
+        <div class="col-md-4 mb-4">
+            <div class="card h-100 shadow-sm border-0 hover-shadow transition">
+                <div class="card-body">
+                    <h5 class="card-title fw-bold text-truncate" title="{{ quiz.title }}">
+                        {{ quiz.title }}
+                    </h5>
+                    <p class="card-text text-muted small" style="height: 40px; overflow: hidden;">
+                        {{ quiz.description | truncate(60) or "Bez popisu" }}
+                    </p>
+                    <div class="d-flex justify-content-between align-items-center mt-3">
+                        <span class="badge bg-light text-dark border">
+                            <i class="bi"></i> Počet otázok: {{ quiz.questions|length }}
+                        </span>
+                    </div>
+                </div>
+
+                <div class="card-footer bg-white border-top-0 d-flex justify-content-between align-items-center pb-3">
+                    <div class="btn-group" role="group">
+                        <a href="{{ url_for('manage_quiz_questions', quiz_id=quiz.id) }}"
+                            class="btn btn-outline-primary btn-sm" title="Upraviť">
+                            <i class="bi bi-pencil"></i>
+                        </a>
+
+                        <a href="{{ url_for('export_quiz', quiz_id=quiz.id) }}" class="btn btn-outline-dark btn-sm"
+                            title="Export">
+                            <i class="bi bi-download"></i>
+                        </a>
+
+                        <a href="{{ url_for('quiz_history', quiz_id=quiz.id) }}" class="btn btn-outline-info btn-sm"
+                            title="História">
+                            <i class="bi bi-clock-history"></i>
+                        </a>
+
+                        <a href="{{ url_for('delete_quiz', quiz_id=quiz.id) }}" class="btn btn-outline-danger btn-sm"
+                            onclick="return confirm('Naozaj zmazať?');" title="Zmazať">
+                            <i class="bi bi-trash"></i>
+                        </a>
+                    </div>
+
+                    <a href="{{ url_for('take_quiz', quiz_id=quiz.id) }}" class="btn btn-primary btn-sm px-3">
+                        <i class="bi bi-play-fill"></i> Spustiť
+                    </a>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endfor %}
+
+{% else %}
+<div class="text-center py-5">
+    <h3 class="text-muted">Zatiaľ nemáš žiadne kvízy.</h3>
+    <p>Klikni na tlačidlo "Nový Kvíz" a vytvor prvý!</p>
+</div>
+{% endif %}
+
+
+<div class="modal fade" id="newQuizModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Vytvoriť nový kvíz</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form method="POST" action="">
+                <div class="modal-body">
+                    {{ form.hidden_tag() }}
+                    <div class="mb-3">
+                        {{ form.title.label(class="form-label") }}
+                        {{ form.title(class="form-control") }}
+                    </div>
+                    <div class="mb-3">
+                        {{ form.category.label(class="form-label") }}
+                        {{ form.category(class="form-control", list="categoryOptions") }}
+                        <datalist id="categoryOptions">
+                            {% for cat in categories %}
+                            <option value="{{ cat }}">
+                                {% endfor %}
+                        </datalist>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-danger" data-bs-dismiss="modal">Zrušiť</button>
+                    {{ form.submit(class="btn btn-success") }}
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="importQuizModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Importovať kvíz zo súboru</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form method="POST" action="{{ url_for('import_quiz') }}" enctype="multipart/form-data">
+                <div class="modal-body">
+                    {{ import_form.hidden_tag() }}
+                    <div class="mb-3">
+                        <p class="text-muted small">
+                            Môžete označiť a nahrať <strong>viacero</strong> .json súborov naraz.
+                        </p>
+
+                        {{ import_form.files.label(class="form-label") }}
+
+                        {{ import_form.files(class="form-control", multiple=True) }}
+
+                        {% if import_form.files.errors %}
+                        <div class="text-danger small">
+                            {% for error in import_form.files.errors %}
+                            <span>{{ error }}</span>
+                            {% endfor %}
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-danger" data-bs-dismiss="modal">Zrušiť</button>
+                    {{ import_form.submit(class="btn btn-primary") }}
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="renameCategoryModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Premenovať kategóriu</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      
+      <form method="POST" action="{{ url_for('rename_category') }}">
+          <div class="modal-body">
+              <input type="hidden" name="old_name" id="oldCategoryInput">
+              
+              <div class="mb-3">
+                  <label for="newCategoryInput" class="form-label">Nový názov kategórie</label>
+                  <input type="text" class="form-control" name="new_name" id="newCategoryInput" required>
+              </div>
+              
+              <div class="alert alert-info small">
+                  <i class="bi bi-info-circle"></i> 
+                  Zmena sa prejaví vo všetkých vašich testoch, ktoré patria do tejto kategórie.
+              </div>
+          </div>
+          <div class="modal-footer">
+              <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Zrušiť</button>
+              <button type="submit" class="btn btn-primary">Uložiť zmenu</button>
+          </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<style>
+    .hover-shadow:hover {
+        box-shadow: 0 .5rem 1rem rgba(0, 0, 0, .15) !important;
+    }
+
+    .transition {
+        transition: all 0.3s ease;
+    }
+</style>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        // --- LOGIKA PREMENOVANIA KATEGÓRIE ---
+        const renameModal = document.getElementById('renameCategoryModal');
+        if (renameModal) {
+            renameModal.addEventListener('show.bs.modal', function (event) {
+                // Tlačidlo, ktoré otvorilo modal
+                const button = event.relatedTarget;
+                // Vytiahneme starý názov z data-oldname atribútu
+                const oldName = button.getAttribute('data-oldname');
+                
+                // Nájdi inputy v modale
+                const modalOldInput = renameModal.querySelector('#oldCategoryInput');
+                const modalNewInput = renameModal.querySelector('#newCategoryInput');
+                
+                // Nastav hodnoty
+                modalOldInput.value = oldName;
+                modalNewInput.value = oldName; // Predvyplníme aj nový názov pre pohodlnú editáciu
+            });
+        }
+        
+        const filterBtns = document.querySelectorAll('.filter-btn');
+        const sections = document.querySelectorAll('.category-section');
+
+        filterBtns.forEach(btn => {
+            btn.addEventListener('click', function () {
+                // 1. Zmeniť aktívne tlačidlo
+                filterBtns.forEach(b => {
+                    b.classList.remove('btn-dark', 'active');
+                    b.classList.add('btn-outline-secondary');
+                });
+                this.classList.remove('btn-outline-secondary');
+                this.classList.add('btn-dark', 'active');
+
+                // 2. Filtrovať sekcie
+                const filterValue = this.getAttribute('data-filter');
+
+                sections.forEach(section => {
+                    if (filterValue === 'all' || section.getAttribute('data-category') === filterValue) {
+                        section.style.display = 'block';
+                    } else {
+                        section.style.display = 'none';
+                    }
+                });
+            });
+        });
+    });
+</script>
+{% endblock %}

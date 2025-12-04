@@ -1,0 +1,180 @@
+{% extends 'manage_layout.html' %}
+
+{% block manager_content %}
+<div class="card shadow-sm">
+    <div class="card-body">
+        <form method="POST">
+            {{ form.hidden_tag() }}
+            
+            <h4 class="mb-3">Základné informácie</h4>
+            <div class="mb-3">
+                {{ form.title.label(class="form-label") }}
+                {{ form.title(class="form-control") }}
+            </div>
+            <div class="mb-3">
+                {{ form.category.label(class="form-label") }}
+                {{ form.category(class="form-control") }}
+            </div>
+            <div class="mb-3">
+                {{ form.description.label(class="form-label") }}
+                {{ form.description(class="form-control", rows=3) }}
+            </div>
+
+            <hr class="my-4">
+
+            <div id="totalTimeSection">
+                <h4 class="mb-3">Celkový časový limit</h4>
+                <div class="row">
+                    <div class="col-md-8">
+                        <label class="form-label">Trvanie testu</label>
+                        <div class="input-group">
+                            <span class="input-group-text">Hodiny</span>
+                            {{ form.total_h(class="form-control") }}
+                            <span class="input-group-text">Minúty</span>
+                            {{ form.total_m(class="form-control") }}
+                            <span class="input-group-text">Sekundy</span>
+                            {{ form.total_s(class="form-control") }}
+                        </div>
+                        <div class="form-text">Nechajte samé 0 pre neobmedzený čas.</div>
+                    </div>
+                </div>
+
+                <div class="mb-3 mt-3 form-check">
+                    {{ form.strict_time_limit(class="form-check-input") }}
+                    {{ form.strict_time_limit.label(class="form-check-label") }}
+                    <div class="form-text text-muted">
+                        {{ form.strict_time_limit.description }}
+                    </div>
+                </div>
+                <hr class="my-4">
+            </div> 
+            <h4 class="mb-3">Zobrazenie a Logika</h4>
+            
+            <div class="mb-3">
+                {{ form.display_mode.label(class="form-label") }}
+                {{ form.display_mode(class="form-select", id="displayModeSelect") }}
+            </div>
+
+            <div class="mb-3 form-check ms-3" id="backtrackingContainer">
+                {{ form.allow_backtracking(class="form-check-input", id="backtrackingCheckbox") }}
+                {{ form.allow_backtracking.label(class="form-check-label") }}
+                <div class="form-text text-muted">
+                    Ak je vypnuté, užívateľ sa nemôže vrátiť k predchádzajúcej otázke.
+                </div>
+            </div>
+
+            <div class="mb-3 ms-3 p-3 bg-light border rounded" id="perQuestionContainer" style="display: none;">
+                <label class="form-label fw-bold text-danger">
+                    <i class="bi bi-stopwatch"></i> Limit na jednu otázku
+                </label>
+                
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="input-group">
+                            <span class="input-group-text">Minúty</span>
+                            {{ form.question_m(class="form-control", id="qMinInput") }}
+                            <span class="input-group-text">Sekundy</span>
+                            {{ form.question_s(class="form-control", id="qSecInput") }}
+                        </div>
+                    </div>
+                </div>
+
+                <div class="form-text">
+                    Zadajte 0:0 pre vypnutie. Ak čas vyprší, automaticky sa prejde na ďalšiu otázku.
+                </div>
+                <div class="text-muted small mt-2">
+                    <i class="bi bi-exclamation-circle"></i> 
+                    Ak nastavíte tento limit, <strong>Celkový časový limit</strong> sa vypočíta automaticky (Súčet otázok × Limit) a manuálne nastavenie vyššie bude ignorované.
+                </div>
+            </div>
+            
+            <hr class="mt-4">
+
+            <div class="mb-3 form-check">
+                {{ form.shuffle_questions(class="form-check-input") }}
+                {{ form.shuffle_questions.label(class="form-check-label") }}
+            </div>
+            <div class="mb-3 form-check">
+                {{ form.shuffle_options(class="form-check-input") }}
+                {{ form.shuffle_options.label(class="form-check-label") }}
+            </div>
+            <div class="mb-3 form-check">
+                {{ form.show_explanations(class="form-check-input") }}
+                {{ form.show_explanations.label(class="form-check-label") }}
+                <div class="form-text">Ak je zapnuté, po vyhodnotení sa zobrazia vysvetlivky k otázkam.</div>
+            </div>
+
+            <hr class="my-4">
+            
+            <div class="mb-3">
+                {{ form.passing_score.label(class="form-label") }}
+                <div class="input-group w-25">
+                    {{ form.passing_score(class="form-control") }}
+                    <span class="input-group-text">%</span>
+                </div>
+            </div>
+
+            <div class="mt-4">
+                {{ form.submit(class="btn btn-primary btn-lg") }}
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const displaySelect = document.getElementById('displayModeSelect');
+        const backtrackingContainer = document.getElementById('backtrackingContainer');
+        const backtrackingCheckbox = document.getElementById('backtrackingCheckbox');
+        
+        const perQuestionContainer = document.getElementById('perQuestionContainer');
+        const totalTimeSection = document.getElementById('totalTimeSection');
+        
+        // NOVÉ IDčka pre vstupy času otázky
+        const qMinInput = document.getElementById('qMinInput');
+        const qSecInput = document.getElementById('qSecInput');
+
+        function updateSettingsUI() {
+            const isOneByOne = (displaySelect.value === 'one_by_one');
+            const backtrackingAllowed = backtrackingCheckbox.checked;
+            
+            // Spočítame celkový čas na otázku (Minúty + Sekundy)
+            const qM = parseInt(qMinInput.value) || 0;
+            const qS = parseInt(qSecInput.value) || 0;
+            const perQuestionTotalSeconds = (qM * 60) + qS;
+            
+            // 1. Backtracking
+            if (isOneByOne) {
+                backtrackingContainer.style.display = 'block';
+            } else {
+                backtrackingContainer.style.display = 'none';
+            }
+
+            // 2. Limit na otázku
+            if (isOneByOne && !backtrackingAllowed) {
+                perQuestionContainer.style.display = 'block';
+            } else {
+                perQuestionContainer.style.display = 'none';
+            }
+
+            // 3. Celkový čas (Skryť ak je aktívny limit na otázku)
+            if (isOneByOne && !backtrackingAllowed && perQuestionTotalSeconds > 0) {
+                totalTimeSection.style.display = 'none';
+            } else {
+                totalTimeSection.style.display = 'block';
+            }
+        }
+
+        updateSettingsUI();
+
+        displaySelect.addEventListener('change', updateSettingsUI);
+        backtrackingCheckbox.addEventListener('change', updateSettingsUI);
+        
+        // Sledujeme zmeny v oboch políčkach času
+        qMinInput.addEventListener('input', updateSettingsUI);
+        qSecInput.addEventListener('input', updateSettingsUI);
+    });
+</script>
+{% endblock %}

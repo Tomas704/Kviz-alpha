@@ -1,0 +1,247 @@
+{% extends 'layout.html' %}
+
+{% block title %}{{ quiz.title }} - Otázka {{ index + 1 }}{% endblock %}
+
+{% block content %}
+
+{% if effective_limit_seconds > 0 %}
+<div id="quizTimerBar" class="fixed-top bg-dark text-white p-2 text-center shadow" style="display: none; z-index: 1030;">
+    <span class="fs-5 fw-bold">
+        <i class="bi bi-stopwatch"></i> <span id="timerLabel">Zostávajúci čas:</span> 
+        <span id="timerDisplay" class="text-warning">--:--</span>
+    </span>
+</div>
+<div style="margin-top: 60px;"></div>
+{% endif %}
+
+<div class="row justify-content-center">
+    <div class="col-lg-8">
+        
+        <div class="progress mb-4" style="height: 20px;">
+            <div class="progress-bar" role="progressbar" 
+                 style="width: {{ ((index) / total) * 100 }}%;">
+                 {{ index }} / {{ total }}
+            </div>
+        </div>
+
+        <form method="POST" id="quizForm">
+            <input type="hidden" name="time_spent" id="timeSpentInput" value="{{ time_spent }}">
+            
+            <div class="card mb-4 shadow-sm">
+                <div class="card-header bg-white d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">Otázka {{ index + 1 }} z {{ total }}</h5>
+                    
+                    <div class="d-flex align-items-center">
+                        {% if quiz.time_per_question_seconds > 0 and not quiz.allow_backtracking %}
+                            <span class="badge bg-success text-white me-2 fs-5 shadow-sm">
+                                <i class="bi bi-hourglass-split"></i> <span id="questionTimerDisplay">--</span>s
+                            </span>
+                        {% endif %}
+                        
+                        <span class="badge bg-light text-dark border">{{ question.points }} b</span>
+                    </div>
+                </div>
+
+                {% if quiz.time_per_question_seconds > 0 and not quiz.allow_backtracking %}
+                <div class="progress" style="height: 15px; border-radius: 0;">
+                    <div id="questionProgressBar" class="progress-bar bg-success progress-bar-striped progress-bar-animated" role="progressbar" style="width: 100%;"></div>
+                </div>
+                {% endif %}
+
+                <div class="card-body p-4">
+                    <div class="lead fw-normal mb-4">{{ question.text | safe }}</div>
+                    
+                    {% if question.q_type == 'text' %}
+                        <div class="form-floating mb-3">
+                            <input type="text" class="form-control" 
+                                   id="q_{{ question.id }}" name="question_{{ question.id }}" 
+                                   placeholder="Odpoveď" value="{{ text_answer }}" required>
+                            <label>Napíšte odpoveď</label>
+                        </div>
+
+                    {% elif question.q_type == 'single' %}
+                        <div class="list-group">
+                            {% for option in question.display_options %}
+                            <label class="list-group-item list-group-item-action cursor-pointer">
+                                <input class="form-check-input me-3" type="radio" 
+                                       name="question_{{ question.id }}" 
+                                       value="{{ option.id }}" required
+                                       {% if option.id|string in selected_options %}checked{% endif %}>
+                                {{ option.text }}
+                            </label>
+                            {% endfor %}
+                        </div>
+
+                    {% elif question.q_type == 'multi' %}
+                        <div class="alert alert-secondary py-2 small">Vyberte všetky správne odpovede</div>
+                        <div class="list-group">
+                            {% for option in question.display_options %}
+                            <label class="list-group-item list-group-item-action cursor-pointer">
+                                <input class="form-check-input me-3" type="checkbox" 
+                                       name="question_{{ question.id }}" 
+                                       value="{{ option.id }}"
+                                       {% if option.id|string in selected_options %}checked{% endif %}>
+                                {{ option.text }}
+                            </label>
+                            {% endfor %}
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <div class="d-flex justify-content-between mb-5">
+                {% if index > 0 and quiz.allow_backtracking %}
+                    <button type="submit" name="direction" value="prev" class="btn btn-secondary btn-lg px-4">
+                        <i class="bi bi-arrow-left"></i> Späť
+                    </button>
+                {% else %}
+                    <div></div>
+                {% endif %}
+
+                {% if index < total - 1 %}
+                    <button type="submit" name="direction" value="next" class="btn btn-primary btn-lg px-4">
+                        Ďalej <i class="bi bi-arrow-right"></i>
+                    </button>
+                {% else %}
+                    <button type="submit" name="direction" value="finish" 
+                            class="btn btn-success btn-lg px-4"
+                            onclick="return confirm('Naozaj chcete ukončiť test?');">
+                        <i class="bi bi-check-circle-fill"></i> Dokončiť test
+                    </button>
+                {% endif %}
+            </div>
+        </form>
+    </div>
+</div>
+
+<style>.cursor-pointer { cursor: pointer; }</style>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // --- PREMENNÉ Z BEKENDU ---
+        // Prijímame sekundy priamo (už žiadne násobenie)
+        const limitTotalSeconds = {{ effective_limit_seconds }};
+        const isStrict = {{ 'true' if quiz.strict_time_limit else 'false' }};
+        const questionLimitSeconds = {{ quiz.time_per_question_seconds }};
+        const allowBacktracking = {{ 'true' if quiz.allow_backtracking else 'false' }};
+        
+        const timeSpentInput = document.getElementById('timeSpentInput');
+        let elapsedSeconds = parseInt(timeSpentInput.value) || 0;
+
+        // HLAVNÝ INTERVAL: Počíta, ako dlho užívateľ robí test
+        setInterval(function() {
+            elapsedSeconds++;
+            timeSpentInput.value = elapsedSeconds;
+        }, 1000);
+
+
+        // --- LOGIKA 1: CELKOVÝ ČASOVÝ LIMIT ---
+        if (limitTotalSeconds > 0) {
+            const timerBar = document.getElementById('quizTimerBar');
+            const timerDisplay = document.getElementById('timerDisplay');
+            const timerLabel = document.getElementById('timerLabel');
+            const quizForm = document.getElementById('quizForm');
+            
+            if (timerBar) {
+                timerBar.style.display = 'block';
+                
+                // ZMENA: Už nenásobíme * 60, lebo limitTotalSeconds sú už sekundy
+                const limitSeconds = limitTotalSeconds;
+                
+                function updateMainTimer() {
+                    let remainingSeconds = limitSeconds - elapsedSeconds;
+                    
+                    // Formátovanie času (MM:SS)
+                    const val = Math.abs(remainingSeconds);
+                    const m = Math.floor(val / 60);
+                    const s = val % 60;
+                    const formatted = `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+
+                    if (remainingSeconds >= 0) {
+                        timerDisplay.textContent = formatted;
+                        if (remainingSeconds < 60) {
+                            timerDisplay.classList.remove('text-warning');
+                            timerDisplay.classList.add('text-danger');
+                        }
+                    } else {
+                        // Čas vypršal
+                        if (isStrict) {
+                            alert("Celkový čas vypršal! Test sa automaticky odošle.");
+                            const hiddenInput = document.createElement('input');
+                            hiddenInput.type = 'hidden';
+                            hiddenInput.name = 'direction';
+                            hiddenInput.value = 'finish';
+                            quizForm.appendChild(hiddenInput);
+                            quizForm.noValidate = true;
+                            quizForm.submit();
+                        } else {
+                            // Voľný limit
+                            timerLabel.textContent = "Prekročený čas:";
+                            timerDisplay.textContent = "+" + formatted;
+                            timerBar.classList.remove('bg-dark');
+                            timerBar.classList.add('bg-danger');
+                        }
+                    }
+                }
+                setInterval(updateMainTimer, 1000);
+                updateMainTimer(); // Spustiť hneď
+            }
+        }
+
+
+        // --- LOGIKA 2: LIMIT NA JEDNU OTÁZKU ---
+        if (questionLimitSeconds > 0 && !allowBacktracking) {
+            const qDisplay = document.getElementById('questionTimerDisplay');
+            const qBar = document.getElementById('questionProgressBar');
+            const quizForm = document.getElementById('quizForm');
+            
+            let qRemaining = questionLimitSeconds;
+            
+            const qInterval = setInterval(function() {
+                qRemaining--;
+                
+                if (qDisplay) qDisplay.textContent = qRemaining;
+                
+                if (qBar) {
+                    const percentage = (qRemaining / questionLimitSeconds) * 100;
+                    qBar.style.width = percentage + "%";
+                    
+                    if (percentage < 30) {
+                        qBar.classList.remove('bg-success');
+                        qBar.classList.add('bg-warning');
+                    }
+                    if (percentage < 10) {
+                        qBar.classList.remove('bg-warning');
+                        qBar.classList.add('bg-danger');
+                    }
+                }
+
+                if (qRemaining <= 0) {
+                    clearInterval(qInterval);
+                    
+                    let nextBtn = document.querySelector('button[value="next"]');
+                    let finishBtn = document.querySelector('button[value="finish"]');
+                    
+                    const hiddenInput = document.createElement('input');
+                    hiddenInput.type = 'hidden';
+                    hiddenInput.name = 'direction';
+                    
+                    if (nextBtn) {
+                        hiddenInput.value = 'next';
+                    } else if (finishBtn) {
+                        hiddenInput.value = 'finish';
+                    }
+                    
+                    quizForm.appendChild(hiddenInput);
+                    quizForm.noValidate = true;
+                    quizForm.submit();
+                }
+            }, 1000);
+            
+            if(qDisplay) qDisplay.textContent = qRemaining;
+        }
+    });
+</script>
+{% endblock %}

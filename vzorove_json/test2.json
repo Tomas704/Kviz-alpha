@@ -1,0 +1,70 @@
+{
+    "title": "Svet Automobilov: Všeobecný prehľad",
+    "description": "Test o autách",
+    "time_limit_minutes": 25,
+    "time_per_question_seconds": 0,
+    "display_mode": "one_by_one",
+    "allow_backtracking": true,
+    "shuffle_questions": true,
+    "shuffle_options": true,
+    "passing_score": 72,
+    "questions": [
+        {
+            "text": "Ktorá automobilka má v logu vzpínajúceho sa čierneho koňa na žltom pozadí?",
+            "type": "single",
+            "points": 1,
+            "options": [
+                {
+                    "text": "Lamborghini",
+                    "is_correct": false
+                },
+                {
+                    "text": "Ferrari",
+                    "is_correct": true
+                },
+                {
+                    "text": "Porsche",
+                    "is_correct": false
+                },
+                {
+                    "text": "Mustang",
+                    "is_correct": false
+                }
+            ]
+        },
+        {
+            "text": "Ktoré z nasledujúcich súčiastok sú bežnou súčasťou spaľovacieho motora?",
+            "type": "multi",
+            "points": 3,
+            "options": [
+                {
+                    "text": "Piest",
+                    "is_correct": true
+                },
+                {
+                    "text": "Kľukový hriadeľ",
+                    "is_correct": true
+                },
+                {
+                    "text": "Diferenciál",
+                    "is_correct": false
+                },
+                {
+                    "text": "Zapaľovacia sviečka",
+                    "is_correct": true
+                }
+            ]
+        },
+        {
+            "text": "Doplňte názov: Legendárny systém pohonu všetkých štyroch kolies od značky Audi sa nazýva ___.",
+            "type": "text",
+            "points": 5,
+            "options": [
+                {
+                    "text": "Quattro",
+                    "is_correct": true
+                }
+            ]
+        }
+    ]
+}

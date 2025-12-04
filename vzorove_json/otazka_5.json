@@ -1,0 +1,28 @@
+{
+    "text": "Ktoré z nasledujúcich súčiastok sú bežnou súčasťou spaľovacieho motora?",
+    "type": "multi",
+    "points": 3,
+    "explanation": "",
+    "options": [
+        {
+            "text": "Piest",
+            "explanation": "",
+            "is_correct": true
+        },
+        {
+            "text": "Kľukový hriadeľ",
+            "explanation": "",
+            "is_correct": true
+        },
+        {
+            "text": "Diferenciál",
+            "explanation": "",
+            "is_correct": false
+        },
+        {
+            "text": "Zapaľovacia sviečka",
+            "explanation": "",
+            "is_correct": true
+        }
+    ]
+}

@@ -1,0 +1,213 @@
+{% extends 'layout.html' %}
+
+{% block title %}Detail výsledku{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-lg-8">
+        
+        <div class="card shadow mb-4 border-0">
+            <div class="card-header py-4 text-center {% if result.percentage >= quiz.passing_score %}bg-success text-white{% else %}bg-danger text-white{% endif %}">
+                <h2 class="mb-0">
+                    {{ result.percentage|round(1) }}%
+                </h2>
+                <p class="mb-0 mt-1">
+                    {{ "Úspešný" if result.percentage >= quiz.passing_score else "Neúspešný" }} 
+                    ({{ result.score }} / {{ result.max_score }} bodov)
+                </p>
+            </div>
+
+            <div class="card-body">
+                <div class="text-center mb-4">
+                    <h4 class="mb-0">{{ quiz.title }}</h4>
+                </div>
+
+                <hr class="my-4">
+
+                <div class="row">
+                    <div class="col-md-6 mb-3 text-center text-md-start">
+                        <small class="text-muted">Dátum vypracovania:</small><br>
+                        <strong>{{ result.date_taken.strftime('%d.%m.%Y %H:%M') }}</strong>
+                    </div>
+                    
+                    <div class="col-md-6 mb-3 text-center text-md-end">
+                        
+                        {% if result.time_limit_seconds_snapshot > 0 %}
+                            <small class="text-muted">Časový limit:</small>
+                            {% set limit_mins = (result.time_limit_seconds_snapshot / 60)|int %}
+                            {% set limit_secs = result.time_limit_seconds_snapshot % 60 %}
+                            <span class="fw-bold">{{ limit_mins }}m {{ limit_secs }}s</span>
+                            <br>
+                        {% endif %}
+
+                        <small class="text-muted">Vaše trvanie:</small>
+                        
+                        {% set mins = (result.time_spent / 60)|int %}
+                        {% set secs = result.time_spent % 60 %}
+                        
+                        {% set time_class = "" %}
+                        {% if result.time_limit_seconds_snapshot > 0 and result.time_spent > result.time_limit_seconds_snapshot %}
+                            {% set time_class = "text-danger" %}
+                        {% endif %}
+
+                        <span class="fs-5 fw-bold {{ time_class }}">
+                            {{ mins }}m {{ secs }}s
+                        </span>
+
+                        {% if result.time_limit_seconds_snapshot > 0 %}
+                            {% set limit_seconds = result.time_limit_seconds_snapshot %}
+                            {% if result.time_spent > limit_seconds %}
+                                <br>
+                                <span class="badge bg-danger mt-1">
+                                    <i class="bi bi-clock-history"></i> 
+                                    Prekročené o {{ ((result.time_spent - limit_seconds) / 60)|int }}m {{ (result.time_spent - limit_seconds) % 60 }}s
+                                </span>
+                            {% endif %}
+                        {% endif %}
+                    </div>
+                </div>
+
+                <div class="row mt-2 border-top pt-3">
+                    <div class="col-12 text-center text-muted small">
+                        <span class="badge bg-light text-dark border">
+                            <i class="bi bi-layers"></i>
+                            Režim: 
+                            {% if result.display_mode_snapshot == 'one_by_one' %}
+                                Po jednej otázke
+                            {% else %}
+                                Všetky otázky naraz
+                            {% endif %}
+                        </span>
+
+                        {% if result.display_mode_snapshot == 'one_by_one' %}
+                            <span class="badge bg-light text-dark border ms-2">
+                                <i class="bi bi-arrow-return-left"></i>
+                                Návrat: 
+                                {% if result.allow_backtracking_snapshot %}
+                                    Povolený
+                                {% else %}
+                                    Zakázaný
+                                {% endif %}
+                            </span>
+                        {% endif %}
+                    </div>
+                </div>
+
+            </div>
+        </div>
+
+        {% for question in quiz.questions %}
+            {% set user_ans = user_map.get(question.id, {'selected_options': [], 'text': ''}) %}
+            
+            {% set is_future_question = (question.created_at > result.date_taken) %}
+            
+            <div class="card mb-4 shadow-sm {% if is_future_question %}opacity-75 bg-light{% endif %}">
+                <div class="card-header d-flex justify-content-between {% if is_future_question %}bg-light text-muted{% else %}bg-white{% endif %}">
+                    <h5 class="mb-0">
+                        Otázka {{ loop.index }} 
+                        {% if question.is_active %}
+                            <small class="text-muted fs-6">({{ question.points }} b)</small>
+                        {% endif %}
+                    </h5>
+                    
+                    {% if not question.is_active %}
+                        <span class="badge bg-warning text-dark">
+                            <i class="bi bi-eye-slash"></i> Deaktivovaná
+                        </span>
+                    {% endif %}
+                </div>
+                
+                <div class="card-body">
+                    <p class="lead mb-3">{{ question.text | safe }}</p>
+
+                    {% if is_future_question %}
+                        <div class="alert alert-secondary py-2 small">
+                            Táto otázka bola do testu pridaná až po vašom vypracovaní, preto sa nezapočítava do výsledného skóre.
+                        </div>
+                    
+                    {% else %}
+
+                        {% if question.q_type == 'text' %}
+                            {% set correct_text = question.options[0].text %}
+                            {% set user_text = user_ans['text'] %}
+                            {% set is_correct = (user_text.strip().lower() == correct_text.strip().lower()) %}
+    
+                            <div class="p-3 rounded mb-2 {% if is_correct %}bg-success-subtle border border-success{% else %}bg-danger-subtle border border-danger{% endif %}">
+                                <strong>Vaša odpoveď:</strong> {{ user_text }}
+                                {% if is_correct %}
+                                    <i class="bi bi-check-circle-fill text-success ms-2"></i>
+                                {% else %}
+                                    <i class="bi bi-x-circle-fill text-danger ms-2"></i>
+                                {% endif %}
+                            </div>
+                            
+                            {% if not is_correct %}
+                                <div class="text-success small mt-2">
+                                    <i class="bi bi-info-circle"></i> Správna odpoveď bola: <strong>{{ correct_text }}</strong>
+                                </div>
+                            {% endif %}
+    
+                        {% else %}
+                            <div class="list-group">
+                                {% for option in question.options %}
+                                    {% set is_selected = option.id in user_ans['selected_options'] %}
+                                    {% set is_correct = option.is_correct %}
+                                    
+                                    {% set row_class = "" %}
+                                    {% if is_selected and is_correct %}
+                                        {% set row_class = "list-group-item-success" %} 
+                                    {% elif is_selected and not is_correct %}
+                                        {% set row_class = "list-group-item-danger" %}  
+                                    {% elif not is_selected and is_correct %}
+                                        {% set row_class = "list-group-item-warning" %} 
+                                    {% endif %}
+    
+                                    <div class="list-group-item {{ row_class }} d-flex justify-content-between align-items-center">
+                                        <div>
+                                            {% if question.q_type == 'single' %}
+                                                <i class="bi {% if is_selected %}bi-record-circle-fill{% else %}bi-circle{% endif %} me-2"></i>
+                                            {% else %}
+                                                <i class="bi {% if is_selected %}bi-check-square-fill{% else %}bi-square{% endif %} me-2"></i>
+                                            {% endif %}
+                                            {{ option.text }}
+                                        </div>
+    
+                                        <div>
+                                            {% if is_correct %}
+                                                <span class="badge bg-success"><i class="bi bi-check-lg"></i> Správne</span>
+                                            {% elif is_selected and not is_correct %}
+                                                <span class="badge bg-danger"><i class="bi bi-x-lg"></i> Vaša voľba</span>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                {% endfor %}
+                            </div>
+                        {% endif %} 
+                        
+                    {% endif %} 
+                </div>
+                {% if quiz.show_explanations and question.explanation and question.explanation.strip() %}
+                        <div class="mt-4 p-3 bg-info-subtle border border-info rounded">
+                            <h6 class="text-info fw-bold mb-2">
+                                <i class="bi bi-lightbulb-fill"></i> Vysvetlenie:
+                            </h6>
+                            <div class="text-dark">
+                                {{ question.explanation | safe }}
+                            </div>
+                        </div>
+                    {% endif %}
+            </div>
+        {% endfor %}
+
+        <div class="d-grid gap-2 mb-5">
+            <a href="{{ url_for('quiz_history', quiz_id=quiz.id) }}" class="btn btn-secondary btn-lg">
+                <i class="bi bi-arrow-left"></i> Späť na históriu
+            </a>
+            <a href="{{ url_for('index') }}" class="btn btn-outline-primary">
+                Prejsť na nástenku
+            </a>
+        </div>
+        
+    </div>
+</div>
+{% endblock %}
